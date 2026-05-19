@@ -8,6 +8,8 @@ export const columns: ColumnDef<{
   security: string;
   industry: string;
   date: Date;
+  rsiValue?: number | null;
+  stochasticValue?: number | null;
 }>[] = [
   {
     accessorKey: "symbol",
@@ -72,6 +74,26 @@ export const columns: ColumnDef<{
       return <div>{Number(curPrice).toFixed(3) as React.ReactNode}</div>;
     },
     enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: "rsiValue",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="RSI" />,
+    cell: ({ row }) => {
+      const rsiValue = row.getValue("rsiValue");
+      return <div>{rsiValue != null ? Number(rsiValue).toFixed(2) : "—"}</div>;
+    },
+    enableSorting: true,
+    enableHiding: false,
+  },
+  {
+    accessorKey: "stochasticValue",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Stochastic" />,
+    cell: ({ row }) => {
+      const v = row.getValue("stochasticValue");
+      return <div>{v != null ? Number(v).toFixed(2) : "—"}</div>;
+    },
+    enableSorting: true,
     enableHiding: false,
   },
 ];

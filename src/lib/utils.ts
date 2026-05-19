@@ -1,20 +1,9 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import yahooFinance from "yahoo-finance2";
 import { MA_Signal, MA_AnalysisResult, StrategyType, Stoch_Signal, Stoch_AnalysisResult, MACDResult } from "./types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
-}
-
-export async function fetchHistoricalData(query: string, queryOptions: { period1: string; period2: string }): Promise<any[]> {
-  try {
-    const results = await yahooFinance.historical(query, queryOptions);
-    return results;
-  } catch (error) {
-    console.error("Failed to fetch historical data:", error);
-    throw new Error("Failed to fetch historical data");
-  }
 }
 
 export function getFormattedDates() {

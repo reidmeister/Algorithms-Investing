@@ -9,7 +9,7 @@ interface SidebarProps {}
 const Sidebar: FC<SidebarProps> = ({}) => {
   const pathname = usePathname();
   return (
-    <aside className="min-w-[200px] fixed top-14 z-30 -ml-2 hidden h-[calc(100vh-3.5rem)] w-[full] shrink-0 md:sticky md:block">
+    <aside className="min-w-[200px] w-[200px] shrink-0 hidden md:block sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
       <div className="relative overflow-hidden w-full h-full py-6 lg:py-8">
         <div data-radix-scroll-area-viewport="" className="h-full w-full rounded-[inherit] ">
           <div className="min-w-full table-auto">

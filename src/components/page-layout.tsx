@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { FC } from "react";
 import Sidebar from "./sidebar";
 
@@ -8,12 +8,12 @@ interface PageLayoutProps {
 
 const PageLayout: FC<PageLayoutProps> = ({ children }) => {
   return (
-    <div className="flex-1">
-      <div className="border-b">
-        <div className="md:grid-cols-[260px_minmax(0,1fr)] max-w-[1600px] ml-auto mr-auto flex-1 items-start md:grid md:gap-6 lg:gap-10 min-h-[calc(100vh-154px)]">
+    <div className="flex-1 w-full">
+      <div className="border-b w-full">
+        <div className="flex flex-1 items-start min-h-[calc(100vh-154px)] w-full">
           <Sidebar />
-          <main className={`relative py-6 lg:gap-10 lg:py-8 h-full w-full`}>
-            <div className="mx-auto w-full min-w-0 h-full min-h-0">{children}</div>
+          <main className="relative py-6 lg:py-8 flex-1 min-w-0 w-full overflow-x-auto">
+            <div className="w-full min-w-0">{children}</div>
           </main>
         </div>
       </div>

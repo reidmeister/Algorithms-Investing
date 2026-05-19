@@ -22,13 +22,15 @@ const FindStocks = () => {
   const { formattedToday } = getFormattedDates();
   const [stochasticPeriod, setStochasticPeriod] = useState<number | null>(14);
   const [stochasticLevel, setStochasticLevel] = useState<number | null>(30);
+  const [stochasticLevelMax, setStochasticLevelMax] = useState<number | null>(null);
   const [stochasticDirection, setStochasticDirection] = useState<string>("above");
   const [smaValue, setSmaValue] = useState<number | null>(20);
   const [smaDirection, setSmaDirection] = useState<string>("above");
   const [interval, setInterval] = useState<string>("1d");
   const [progress, setProgress] = useState(0);
   const [matchingStock, setMatchingStock] = useState<{ symbol: string; security: string; industry: string; date: Date }[]>([]);
-  const [rsiValue, setRsiValue] = useState<number | null>(20);
+  const [rsiPeriod, setRsiPeriod] = useState<number | null>(14);
+  const [rsiValue, setRsiValue] = useState<number | null>(30);
   const [rsiDirection, setRsiDirection] = useState<string>("above");
   const [macDPeriod, setmacDPeriod] = useState<number | null>(9);
   const [macDFastValue, setMacDFastValue] = useState<number | null>(12);
@@ -38,7 +40,7 @@ const FindStocks = () => {
   const [includeRsi, setIncludeRsi] = useState(false);
   const [includeMacd, setIncludeMacd] = useState(false);
   const [isDataReady, setIsDataReady] = useState(false);
-  const [includeLiveData, setIncludeLiveData] = useState(false);
+  const [includeLiveData, setIncludeLiveData] = useState(true);
   const [selectedRows, setSelectedRows] = useState<StockSecuritySectorFormat[]>([]);
 
   const downloadCSV = (data: any[]) => {
@@ -53,12 +55,15 @@ const FindStocks = () => {
     saveAs(blob, "Matching Stock Data.csv");
   };
 
-  const handleFetch = async () => {
+  const handleFetch = async (levelMin?: number, levelMax?: number) => {
+    const activeLevel = levelMin ?? stochasticLevel;
+    const activeLevelMax = levelMax ?? stochasticLevelMax;
+
     setMatchingStock([]);
     setLoading(true);
     setProgress(0);
 
-    if (!stochasticPeriod || !stochasticLevel || !stochasticDirection) {
+    if (!includeRsi && (!stochasticPeriod || !activeLevel || !stochasticDirection)) {
       toast({
         title: "Error",
         description: "Stochastic fields are required.",
@@ -69,7 +74,13 @@ const FindStocks = () => {
     }
 
     const results = [];
-    const days = interval == "1d" || interval == "5d" ? 365 : interval == "1mo" || interval == "3mo" ? (stochasticPeriod + 1) * 90 : (stochasticPeriod + 1) * 365;
+    const days = interval == "1d" || interval == "5d" ? 365
+      : interval == "1mo" ? (stochasticPeriod + 1) * 30
+      : interval == "2mo" ? (stochasticPeriod + 1) * 60
+      : interval == "3mo" ? (stochasticPeriod + 1) * 90
+      : interval == "6mo" ? (stochasticPeriod + 1) * 180
+      : interval == "9mo" ? (stochasticPeriod + 1) * 270
+      : (stochasticPeriod + 1) * 365;
     const larger_period = Math.max(smaValue ?? 0, stochasticPeriod, days);
     const period1Date = new Date();
     period1Date.setDate(period1Date.getDate() - larger_period);
@@ -122,25 +133,28 @@ const FindStocks = () => {
           }
 
           const smaValues = includeSma ? calculateSma(closes, smaValue!) : null;
-          const rsiValues = includeRsi ? calculateRsi(closes, rsiValue!) : null;
+          const rsiValues = includeRsi ? calculateRsi(closes, rsiPeriod ?? 14) : null;
+          const rsiDisplay = calculateRsi(closes, rsiPeriod ?? 14);
           const macdValues = includeMacd ? calculateMACD(closes, macDFastValue!, macDSlowValue!, macDPeriod!) : null;
 
           for (let i = closes.length; i > Math.max(smaValue ?? 0, stochasticPeriod); i--) {
             if (stochasticValues[i] !== null && stochasticValues[i - 1]) {
               const smaCondition = includeSma ? smaValues![i] !== null && (smaDirection === "above" ? closes[i] > smaValues![i]! : closes[i] < smaValues![i]!) : true;
 
-              const rsiCondition = includeRsi ? rsiValues![i] !== null && (rsiDirection === "above" ? rsiValues![i]! > rsiValue! : rsiValues![i]! < rsiValue!) : true;
+              const rsiIdx = i - (rsiPeriod ?? 14);
+              const rsiCondition = includeRsi ? rsiIdx >= 0 && rsiValues![rsiIdx] != null && (rsiDirection === "above" ? rsiValues![rsiIdx]! > rsiValue! : rsiValues![rsiIdx]! < rsiValue!) : true;
               const macdCondition = includeMacd
                 ? macdValues!.macdLine[i] !== null &&
                   macdValues!.signalLine[i] !== null &&
                   (macdDirection === "above" ? macdValues!.macdLine[i]! > macdValues!.signalLine[i]! : macdValues!.macdLine[i]! < macdValues!.signalLine[i]!)
                 : true;
 
-              // main signal
-              const stochasticCondition =
+              const stochasticCondition = includeRsi ? true :
                 stochasticDirection === "above"
-                  ? stochasticValues[i]! > stochasticLevel && stochasticValues[i - 1]! < stochasticLevel
-                  : stochasticValues[i]! < stochasticLevel && stochasticValues[i - 1]! > stochasticLevel;
+                  ? stochasticValues[i]! > activeLevel && stochasticValues[i - 1]! < activeLevel &&
+                    (activeLevelMax === null || stochasticValues[i]! <= activeLevelMax)
+                  : stochasticValues[i]! < activeLevel && stochasticValues[i - 1]! > activeLevel &&
+                    (activeLevelMax === null || stochasticValues[i]! >= activeLevelMax);
 
               if (smaCondition && stochasticCondition && rsiCondition && macdCondition) {
                 if (includeSma) console.log(closes[i], smaValues![i]);
@@ -151,6 +165,8 @@ const FindStocks = () => {
                   date: data[i].date,
                   buyPrice: closes[i],
                   curPrice: livePrice,
+                  rsiValue: rsiDisplay[i - (rsiPeriod ?? 14)] ?? null,
+                  stochasticValue: stochasticValues[i] ?? null,
                 });
                 break;
               }
@@ -163,6 +179,7 @@ const FindStocks = () => {
       setProgress((prevProgress) => prevProgress + 1);
     }
 
+    results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setIsDataReady(true);
     setMatchingStock(results);
     setLoading(false);
@@ -201,24 +218,28 @@ const FindStocks = () => {
               <SelectItem value="below">Crosses Below </SelectItem>
             </SelectContent>
           </Select>
-          <Input
-            disabled={loading}
-            type="text"
-            placeholder="Stochastic (e.g. 20, 30, 70, ...)"
-            value={stochasticLevel ?? ""}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              const value = e.target.value;
-              if (value === "") {
-                setStochasticLevel(null);
-              } else {
-                const numValue = Number(value);
-                if (!isNaN(numValue)) {
-                  setStochasticLevel(numValue);
-                }
-              }
-            }}
-            className="hover:border-blue-500 max-w-[180px]"
-          />
+          <div className="flex flex-wrap gap-1">
+            {Array.from({ length: 20 }, (_, i) => {
+              const min = i * 5 + 1;
+              const max = (i + 1) * 5;
+              const isActive = stochasticLevel === min && stochasticLevelMax === max;
+              return (
+                <Button
+                  key={min}
+                  disabled={loading}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setStochasticLevel(min);
+                    setStochasticLevelMax(max);
+                    if (!includeRsi) handleFetch(min, max);
+                  }}
+                >
+                  {min}-{max}
+                </Button>
+              );
+            })}
+          </div>
         </div>
         <div className="flex items-center gap-2 ml-auto">
           <span className="h-10 py-2 text-sm font-semibold">Stochastic Period</span>
@@ -290,9 +311,12 @@ const FindStocks = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="1d">1 Day</SelectItem>
-              <SelectItem value="5d">5 Day </SelectItem>
-              <SelectItem value="1mo">1 Month </SelectItem>
-              <SelectItem value="3mo">3 Month </SelectItem>
+              <SelectItem value="5d">5 Day</SelectItem>
+              <SelectItem value="1mo">1 Month</SelectItem>
+              <SelectItem value="2mo">2 Month</SelectItem>
+              <SelectItem value="3mo">3 Month</SelectItem>
+              <SelectItem value="6mo">6 Month</SelectItem>
+              <SelectItem value="9mo">9 Month</SelectItem>
               <SelectItem value="1y">Yearly</SelectItem>
             </SelectContent>
           </Select>
@@ -390,32 +414,38 @@ const FindStocks = () => {
             <span className="h-10 py-2 text-sm font-semibold pr-[75.39px]">Include RSI</span>
           </div>
 
+          <Input
+            disabled={loading}
+            type="text"
+            placeholder="RSI Period (default 14)"
+            value={rsiPeriod ?? ""}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              const value = e.target.value;
+              if (value === "") setRsiPeriod(null);
+              else { const n = Number(value); if (!isNaN(n)) setRsiPeriod(n); }
+            }}
+            className="hover:border-blue-500 max-w-[140px]"
+          />
           <Select disabled={loading} onValueChange={(value) => setRsiDirection(value)}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Above" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="above">Above </SelectItem>
-              <SelectItem value="below">Below </SelectItem>
+              <SelectItem value="above">Above</SelectItem>
+              <SelectItem value="below">Below</SelectItem>
             </SelectContent>
           </Select>
           <Input
             disabled={loading}
             type="text"
-            placeholder="RSI Level (e.g. 20, 30, 70, ...)"
+            placeholder="RSI Level (e.g. 30, 70, ...)"
             value={rsiValue ?? ""}
             onChange={(e: ChangeEvent<HTMLInputElement>) => {
               const value = e.target.value;
-              if (value === "") {
-                setRsiValue(null);
-              } else {
-                const numValue = Number(value);
-                if (!isNaN(numValue)) {
-                  setRsiValue(numValue);
-                }
-              }
+              if (value === "") setRsiValue(null);
+              else { const n = Number(value); if (!isNaN(n)) setRsiValue(n); }
             }}
-            className="hover:border-blue-500 max-w-[180px]"
+            className="hover:border-blue-500 max-w-[140px]"
           />
         </div>
         <div
