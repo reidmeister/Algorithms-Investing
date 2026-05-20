@@ -194,81 +194,12 @@ const ExponentialMovingAverage = ({}) => {
     <div className="flex flex-col mt-8">
       <h1 className="text-2xl font-bold mb-4">Find Best Exponential Moving Average Crossovers</h1>
       <p className="text-sm text-muted-foreground mb-4">
-        Spot trends and pinpoint trade opportunities with this Exponential Moving Average Crossover tool. Just choose a stock (some symbols may be missing from autofill), set your windows, choose your
-        dates, and click &apos;Fetch&apos; to get started. Click on a row for more insights on when to buy and sell stock based on crossovers.
-      </p>
-      <p className="text-sm text-muted-foreground mb-4">
         When the fast EMA crosses above the slow EMA, this is a sign of an uptrend, which indicates a buy. Vise versa, when the fast EMA crosses below the slow EMA, this is a sign of a downtrend,
         which indicates a sell.
       </p>
 
-      <hr className="mb-4" />
-      <div className="w-full flex gap-4 mb-4">
-        <StockSearchForm curName={curName} setSymbol={setSymbol} period1={period1} setPeriod1={setPeriod1} period2={period2} setPeriod2={setPeriod2} />
-      </div>
-      <div className="w-full mb-4 flex items-center gap-4 justify-between">
-        <div className="flex items-center gap-2">
-          <span className="h-10 py-2 text-md font-semibold">Fast EMA Window:</span>
-          <Input
-            type="text"
-            placeholder="Fast (e.g. 1-10)"
-            value={shortTermWindow}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              const value = e.target.value;
-              setShortTermWindow(value);
-            }}
-            className="hover:border-blue-500 max-w-[180px]"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="h-10 py-2 text-md font-semibold">Slow EMA Window:</span>
-          <Input
-            type="text"
-            placeholder="Slow (e.g., 10-50)"
-            value={longTermWindow}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              const value = e.target.value;
-              setLongTermWindow(value);
-            }}
-            className="hover:border-blue-500 max-w-[180px]"
-          />
-        </div>
-        <div>
-          <div className="flex items-center space-x-2 py-1">
-            <Checkbox
-              id="considerLongEntries"
-              checked={considerLongEntries}
-              onCheckedChange={() => {
-                setConsiderLongEntries(!considerLongEntries);
-              }}
-            />
-            <label htmlFor="considerLongEntries" className="text-sm font-medium leading-none">
-              Consider Long Positions
-            </label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="considerShortEntries"
-              checked={considerShortEntries}
-              onCheckedChange={() => {
-                setConsiderShortEntries(!considerShortEntries);
-              }}
-            />
-            <label htmlFor="considerShortEntries" className="text-sm font-medium leading-none">
-              Consider Short Positions
-            </label>
-          </div>
-        </div>
-        <Button onClick={handleSubmit} className="btn btn-primary self-start">
-          Fetch
-        </Button>
-      </div>
-      <div className="w-full">
-        <DataTable isLoading={isLoading} columns={columns} data={smaData} />
-      </div>
-
       {/* ── EMA Crossover Scanner ── */}
-      <hr className="my-8" />
+      <hr className="mb-4" />
       <h2 className="text-xl font-bold mb-2">EMA Crossover Scanner</h2>
       <p className="text-sm text-muted-foreground mb-4">
         Scans the S&amp;P 500 and returns every stock where the fast EMA most recently crossed the slow EMA in the chosen direction. Green rows indicate the stock is up since the crossover; red rows are down.
@@ -361,6 +292,77 @@ const ExponentialMovingAverage = ({}) => {
 
       <div className="w-full">
         <ScannerDataTable isLoading={scanLoading} columns={scannerColumns} data={scanResults} showTodayHighlight={showTodayHighlight} />
+      </div>
+
+      {/* ── Single-Stock EMA Analysis ── */}
+      <hr className="my-8" />
+      <h2 className="text-xl font-bold mb-2">Single-Stock EMA Analysis</h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Spot trends and pinpoint trade opportunities with this Exponential Moving Average Crossover tool. Just choose a stock (some symbols may be missing from autofill), set your windows, choose your
+        dates, and click &apos;Fetch&apos; to get started. Click on a row for more insights on when to buy and sell stock based on crossovers.
+      </p>
+      <div className="w-full flex gap-4 mb-4">
+        <StockSearchForm curName={curName} setSymbol={setSymbol} period1={period1} setPeriod1={setPeriod1} period2={period2} setPeriod2={setPeriod2} />
+      </div>
+      <div className="w-full mb-4 flex items-center gap-4 justify-between">
+        <div className="flex items-center gap-2">
+          <span className="h-10 py-2 text-md font-semibold">Fast EMA Window:</span>
+          <Input
+            type="text"
+            placeholder="Fast (e.g. 1-10)"
+            value={shortTermWindow}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              const value = e.target.value;
+              setShortTermWindow(value);
+            }}
+            className="hover:border-blue-500 max-w-[180px]"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-10 py-2 text-md font-semibold">Slow EMA Window:</span>
+          <Input
+            type="text"
+            placeholder="Slow (e.g., 10-50)"
+            value={longTermWindow}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              const value = e.target.value;
+              setLongTermWindow(value);
+            }}
+            className="hover:border-blue-500 max-w-[180px]"
+          />
+        </div>
+        <div>
+          <div className="flex items-center space-x-2 py-1">
+            <Checkbox
+              id="considerLongEntries"
+              checked={considerLongEntries}
+              onCheckedChange={() => {
+                setConsiderLongEntries(!considerLongEntries);
+              }}
+            />
+            <label htmlFor="considerLongEntries" className="text-sm font-medium leading-none">
+              Consider Long Positions
+            </label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="considerShortEntries"
+              checked={considerShortEntries}
+              onCheckedChange={() => {
+                setConsiderShortEntries(!considerShortEntries);
+              }}
+            />
+            <label htmlFor="considerShortEntries" className="text-sm font-medium leading-none">
+              Consider Short Positions
+            </label>
+          </div>
+        </div>
+        <Button onClick={handleSubmit} className="btn btn-primary self-start">
+          Fetch
+        </Button>
+      </div>
+      <div className="w-full">
+        <DataTable isLoading={isLoading} columns={columns} data={smaData} />
       </div>
     </div>
   );
