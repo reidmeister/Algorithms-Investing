@@ -42,6 +42,7 @@ const ExponentialMovingAverage = ({}) => {
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [scanSelectedRows, setScanSelectedRows] = useState<StockSecuritySectorFormat[]>([]);
   const [showTodayHighlight, setShowTodayHighlight] = useState(false);
+  const [scanIncludeLiveData, setScanIncludeLiveData] = useState(true);
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -154,6 +155,9 @@ const ExponentialMovingAverage = ({}) => {
         const data = await fetchChartData(ticker.Symbol, period1Date.toISOString().split("T")[0], formattedToday, scanInterval);
         if (data && data.length >= 2) {
           const livePrice = data[data.length - 1].close;
+          if (!scanIncludeLiveData) {
+            data.pop();
+          }
           const dates = data.map((d) => d.date);
           const closes = data.map((d) => d.close);
 
@@ -333,6 +337,13 @@ const ExponentialMovingAverage = ({}) => {
               <SelectItem value="1y">Yearly</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div
+          className="cursor-pointer flex items-center gap-2"
+          onClick={() => setScanIncludeLiveData(!scanIncludeLiveData)}
+        >
+          <Checkbox checked={scanIncludeLiveData} className="-translate-y-[1px]" />
+          <span className="text-sm font-semibold">Include Current Day&apos;s Data</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Button
