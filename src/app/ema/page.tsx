@@ -196,6 +196,35 @@ const ExponentialMovingAverage = ({}) => {
         When the fast EMA crosses above the slow EMA, this is a sign of an uptrend, which indicates a buy. Vise versa, when the fast EMA crosses below the slow EMA, this is a sign of a downtrend,
         which indicates a sell.
       </p>
+
+      {/* EMA Formula Box */}
+      <div className="rounded-lg border bg-muted/40 px-6 py-4 mb-4 w-fit">
+        <p className="text-sm font-semibold mb-3">EMA Formula</p>
+        <div className="space-y-2 font-mono text-sm">
+          <div>
+            <span className="text-muted-foreground">Step 1 — Seed (first value):</span>
+            <div className="mt-1 pl-4">
+              EMA<sub>period</sub> = SMA of first <em>N</em> closing prices
+            </div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Step 2 — Each subsequent bar:</span>
+            <div className="mt-1 pl-4">
+              EMA<sub>t</sub> = ( EMA<sub>t−1</sub> × (N − 1) + Price<sub>t</sub> ) ÷ N
+            </div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Equivalent form:</span>
+            <div className="mt-1 pl-4">
+              EMA<sub>t</sub> = EMA<sub>t−1</sub> + α × ( Price<sub>t</sub> − EMA<sub>t−1</sub> )
+            </div>
+            <div className="mt-1 pl-4 text-muted-foreground">
+              where α = 1 ÷ N &nbsp;(smoothing factor),&nbsp; N = period
+            </div>
+          </div>
+        </div>
+      </div>
+
       <hr className="mb-4" />
       <div className="w-full flex gap-4 mb-4">
         <StockSearchForm curName={curName} setSymbol={setSymbol} period1={period1} setPeriod1={setPeriod1} period2={period2} setPeriod2={setPeriod2} />
