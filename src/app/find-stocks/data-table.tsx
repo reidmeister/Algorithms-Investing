@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ColumnDef, SortingState, flexRender, getCoreRowModel, getPaginationRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table";
+import { ColumnDef, ColumnFiltersState, SortingState, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { BeatLoader } from "react-spinners";
 import { DataTablePagination } from "@/components/data-table-pagination";
 
@@ -15,6 +16,7 @@ interface DataTableProps<TData, TValue> {
 
 export function DataTable<TData, TValue>({ columns, data, isLoading }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const table = useReactTable({
     data,
     columns,
@@ -22,13 +24,22 @@ export function DataTable<TData, TValue>({ columns, data, isLoading }: DataTable
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    getFilteredRowModel: getFilteredRowModel(),
     state: {
       sorting,
+      columnFilters,
     },
   });
 
   return (
     <div className="space-y-4">
+      <Input
+        placeholder="Search by stock name..."
+        value={(table.getColumn("security")?.getFilterValue() as string) ?? ""}
+        onChange={(e) => table.getColumn("security")?.setFilterValue(e.target.value)}
+        className="max-w-sm"
+      />
       <div className="rounded-md border">
         <Table>
           <TableHeader>
