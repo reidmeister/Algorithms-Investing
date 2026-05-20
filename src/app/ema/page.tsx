@@ -41,6 +41,7 @@ const ExponentialMovingAverage = ({}) => {
   const [scanLoading, setScanLoading] = useState<boolean>(false);
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [scanSelectedRows, setScanSelectedRows] = useState<StockSecuritySectorFormat[]>([]);
+  const [showTodayHighlight, setShowTodayHighlight] = useState(false);
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -361,13 +362,22 @@ const ExponentialMovingAverage = ({}) => {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleScan} disabled={scanLoading} className="btn btn-primary ml-auto">
-          {scanLoading ? "Scanning…" : "Scan"}
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            onClick={() => setShowTodayHighlight(!showTodayHighlight)}
+            variant={showTodayHighlight ? "default" : "outline"}
+            className={showTodayHighlight ? "bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-400" : "border-yellow-400 text-yellow-600 hover:bg-yellow-50"}
+          >
+            TODAY
+          </Button>
+          <Button onClick={handleScan} disabled={scanLoading} className="btn btn-primary">
+            {scanLoading ? "Scanning…" : "Scan"}
+          </Button>
+        </div>
       </div>
 
       <div className="w-full">
-        <ScannerDataTable isLoading={scanLoading} columns={scannerColumns} data={scanResults} />
+        <ScannerDataTable isLoading={scanLoading} columns={scannerColumns} data={scanResults} showTodayHighlight={showTodayHighlight} />
       </div>
     </div>
   );
