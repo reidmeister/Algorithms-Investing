@@ -46,7 +46,14 @@ const ExponentialMovingAverage = ({}) => {
     ev.preventDefault();
     setIsLoading(true);
 
-    if (symbol === "" || shortTermWindow === "" || longTermWindow === "") {
+    // If no symbol is entered, run the full S&P 500 scanner instead
+    if (symbol === "") {
+      setIsLoading(false);
+      handleScan();
+      return;
+    }
+
+    if (shortTermWindow === "" || longTermWindow === "") {
       toast({
         title: "Error",
         description: "All fields are required.",
