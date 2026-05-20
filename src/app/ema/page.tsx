@@ -1,16 +1,21 @@
 "use client";
-import { analyzeMovingAveragePerformance, getFormattedDates } from "@/lib/utils";
+import { analyzeMovingAveragePerformance, generateMovingAverageSignals, getFormattedDates } from "@/lib/utils";
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
+import { ScannerDataTable } from "./scanner-data-table";
+import { scannerColumns, EMAScanResult } from "./scanner-columns";
 import { ChangeEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useChartData } from "@/hooks/useChartData";
 import { Tickers_dict } from "@/lib/data/nasdaq_100_dict";
 import StockSearchForm from "@/components/stock-search-form";
 import { Input } from "@/components/ui/input";
-import { MA_AnalysisResult, StrategyType } from "@/lib/types";
+import { MA_AnalysisResult, StrategyType, StockSecuritySectorFormat } from "@/lib/types";
 import { useToast } from "@/components/ui/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { snp_array } from "@/lib/data/snp_500";
+import FindStockFilter from "@/components/find-stock-data-table-components/find-stock-filter";
 
 const ExponentialMovingAverage = ({}) => {
   const { formattedToday, formattedLastYear } = getFormattedDates();
@@ -26,6 +31,16 @@ const ExponentialMovingAverage = ({}) => {
   const { toast } = useToast();
   const [considerLongEntries, setConsiderLongEntries] = useState(true);
   const [considerShortEntries, setConsiderShortEntries] = useState(false);
+
+  // Scanner state
+  const [scanFastEMA, setScanFastEMA] = useState<number | null>(9);
+  const [scanSlowEMA, setScanSlowEMA] = useState<number | null>(21);
+  const [scanDirection, setScanDirection] = useState<string>("above");
+  const [scanInterval, setScanInterval] = useState<string>("1d");
+  const [scanResults, setScanResults] = useState<EMAScanResult[]>([]);
+  const [scanLoading, setScanLoading] = useState<boolean>(false);
+  const [scanProgress, setScanProgress] = useState<number>(0);
+  const [scanSelectedRows, setScanSelectedRows] = useState<StockSecuritySectorFormat[]>([]);
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -89,6 +104,78 @@ const ExponentialMovingAverage = ({}) => {
     }
 
     setIsLoading(false);
+  };
+
+  const handleScan = async () => {
+    if (!scanFastEMA || !scanSlowEMA) {
+      toast({
+        title: "Error",
+        description: "Fast and slow EMA periods are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (scanFastEMA >= scanSlowEMA) {
+      toast({
+        title: "Error",
+        description: "Fast EMA period must be less than the slow EMA period.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setScanLoading(true);
+    setScanResults([]);
+    setScanProgress(0);
+
+    const results: EMAScanResult[] = [];
+    const barsNeeded = Math.max(scanFastEMA, scanSlowEMA) + 30;
+    const days =
+      scanInterval === "1d" || scanInterval === "5d" ? 365
+      : scanInterval === "1mo" ? barsNeeded * 30
+      : scanInterval === "3mo" ? barsNeeded * 90
+      : scanInterval === "6mo" ? barsNeeded * 180
+      : barsNeeded * 365;
+    const period1Date = new Date();
+    period1Date.setDate(period1Date.getDate() - days);
+
+    const stockList = scanSelectedRows.length > 0 ? scanSelectedRows : snp_array;
+
+    for (const ticker of stockList) {
+      try {
+        const data = await fetchChartData(ticker.Symbol, period1Date.toISOString().split("T")[0], formattedToday, scanInterval);
+        if (data && data.length >= 2) {
+          const livePrice = data[data.length - 1].close;
+          const dates = data.map((d) => d.date);
+          const closes = data.map((d) => d.close);
+
+          const signals = generateMovingAverageSignals(dates, closes, scanFastEMA, scanSlowEMA, false, StrategyType.Both);
+
+          // Find most recent crossover matching the chosen direction
+          for (let i = signals.length - 1; i >= 0; i--) {
+            const pos = signals[i].positions;
+            if ((scanDirection === "above" && pos === 1) || (scanDirection === "below" && pos === -1)) {
+              results.push({
+                symbol: ticker.Symbol,
+                security: ticker.Security,
+                industry: ticker["GICS Sector"],
+                date: signals[i].date,
+                buyPrice: signals[i].price,
+                curPrice: livePrice,
+              });
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error scanning", ticker.Symbol, e);
+      }
+      setScanProgress((prev) => prev + 1);
+    }
+
+    results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setScanResults(results);
+    setScanLoading(false);
   };
 
   return (
@@ -165,6 +252,86 @@ const ExponentialMovingAverage = ({}) => {
       </div>
       <div className="w-full">
         <DataTable isLoading={isLoading} columns={columns} data={smaData} />
+      </div>
+
+      {/* ── EMA Crossover Scanner ── */}
+      <hr className="my-8" />
+      <h2 className="text-xl font-bold mb-2">EMA Crossover Scanner</h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Scans the S&amp;P 500 and returns every stock where the fast EMA most recently crossed the slow EMA in the chosen direction. Green rows indicate the stock is up since the crossover; red rows are down.
+      </p>
+
+      <div className="flex gap-4 items-center mb-4">
+        <p className="text-sm text-muted-foreground">Searched through {scanProgress} out of</p>
+        <FindStockFilter disabled={scanLoading} selectedRows={scanSelectedRows} setSelectedRows={setScanSelectedRows} snp_array={snp_array} />
+      </div>
+
+      <div className="w-full mb-4 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Fast EMA</span>
+          <Input
+            disabled={scanLoading}
+            type="text"
+            placeholder="e.g. 9"
+            value={scanFastEMA ?? ""}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              const v = e.target.value;
+              if (v === "") setScanFastEMA(null);
+              else { const n = Number(v); if (!isNaN(n)) setScanFastEMA(n); }
+            }}
+            className="hover:border-blue-500 max-w-[100px]"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Slow EMA</span>
+          <Input
+            disabled={scanLoading}
+            type="text"
+            placeholder="e.g. 21"
+            value={scanSlowEMA ?? ""}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              const v = e.target.value;
+              if (v === "") setScanSlowEMA(null);
+              else { const n = Number(v); if (!isNaN(n)) setScanSlowEMA(n); }
+            }}
+            className="hover:border-blue-500 max-w-[100px]"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Direction</span>
+          <Select disabled={scanLoading} onValueChange={(v) => setScanDirection(v)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Crosses Above" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="above">Crosses Above</SelectItem>
+              <SelectItem value="below">Crosses Below</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Interval</span>
+          <Select disabled={scanLoading} onValueChange={(v) => setScanInterval(v)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="1 Day" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1d">1 Day</SelectItem>
+              <SelectItem value="5d">5 Day</SelectItem>
+              <SelectItem value="1mo">1 Month</SelectItem>
+              <SelectItem value="3mo">3 Month</SelectItem>
+              <SelectItem value="6mo">6 Month</SelectItem>
+              <SelectItem value="1y">Yearly</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={handleScan} disabled={scanLoading} className="btn btn-primary ml-auto">
+          {scanLoading ? "Scanning…" : "Scan"}
+        </Button>
+      </div>
+
+      <div className="w-full">
+        <ScannerDataTable isLoading={scanLoading} columns={scannerColumns} data={scanResults} />
       </div>
     </div>
   );
