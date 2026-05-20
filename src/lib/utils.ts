@@ -300,6 +300,31 @@ export function calculateStochastic(close: number[], high: number[], low: number
   return three_day__sma_three_day_stoch_sma;
 }
 
+export function calculateStochasticKD(close: number[], high: number[], low: number[], period: number): { k: (number | null)[], d: (number | null)[] } {
+  let percentK: number[] = [];
+
+  for (let i = period - 1; i < close.length; i++) {
+    let periodHighs = high.slice(i - period + 1, i + 1);
+    let periodLows = low.slice(i - period + 1, i + 1);
+    let highestHigh = Math.max(...periodHighs);
+    let lowestLow = Math.min(...periodLows);
+    let currentClose = close[i];
+
+    if (highestHigh === lowestLow) {
+      percentK.push(0);
+    } else {
+      let kValue = ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
+      percentK.push(kValue);
+    }
+  }
+
+  let initialNulls = new Array(period - 1).fill(null);
+  const k = calculateSma([...initialNulls, ...percentK], 3);
+  const d = calculateSma(k, 3);
+
+  return { k, d };
+}
+
 export function generateStochasticSignals(
   date_data: Date[],
   prices: number[],

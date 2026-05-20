@@ -11,9 +11,11 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   isLoading: boolean;
+  showTodayHighlight?: boolean;
 }
 
-export function DataTable<TData, TValue>({ columns, data, isLoading }: DataTableProps<TData, TValue>) {
+export function DataTable<TData, TValue>({ columns, data, isLoading, showTodayHighlight }: DataTableProps<TData, TValue>) {
+  const todayStr = new Date().toDateString();
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const table = useReactTable({
     data,
@@ -22,6 +24,9 @@ export function DataTable<TData, TValue>({ columns, data, isLoading }: DataTable
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
+    initialState: {
+      pagination: { pageSize: 25 },
+    },
     state: {
       sorting,
     },
@@ -46,7 +51,9 @@ export function DataTable<TData, TValue>({ columns, data, isLoading }: DataTable
                 <TableRow
                   key={row.id}
                   className={`${
-                    Number(row.getValue("buyPrice")) < Number(row.getValue("curPrice"))
+                    showTodayHighlight && new Date((row.getValue("date") as string | Date)).toDateString() === todayStr
+                      ? "bg-yellow-100"
+                      : Number(row.getValue("buyPrice")) < Number(row.getValue("curPrice"))
                       ? "bg-green-400/10"
                       : Number(row.getValue("buyPrice")) > Number(row.getValue("curPrice"))
                       ? "bg-red-400/10"

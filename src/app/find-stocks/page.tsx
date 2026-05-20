@@ -2,7 +2,7 @@
 
 import React, { ChangeEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { calculateMACD, calculateRsi, calculateSma, calculateStochastic, getFormattedDates } from "@/lib/utils";
+import { calculateMACD, calculateRsi, calculateSma, calculateStochasticKD, getFormattedDates } from "@/lib/utils";
 import { snp_array } from "@/lib/data/snp_500";
 import { useChartData } from "@/hooks/useChartData";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,9 @@ const FindStocks = () => {
   const [isDataReady, setIsDataReady] = useState(false);
   const [includeLiveData, setIncludeLiveData] = useState(true);
   const [selectedRows, setSelectedRows] = useState<StockSecuritySectorFormat[]>([]);
+  const [isAllActive, setIsAllActive] = useState(false);
+  const [isAllDownActive, setIsAllDownActive] = useState(false);
+  const [showTodayHighlight, setShowTodayHighlight] = useState(false);
 
   const downloadCSV = (data: any[]) => {
     let csvContent = ["Symbol", "Security", "Industry", "Date of Signal", "Date of Signal Price", "Current Price"].join(",") + "\n";
@@ -74,14 +77,15 @@ const FindStocks = () => {
     }
 
     const results = [];
+    const barsNeeded = Math.max(stochasticPeriod ?? 14, includeRsi ? (rsiPeriod ?? 14) : 0) + 30;
     const days = interval == "1d" || interval == "5d" ? 365
-      : interval == "1mo" ? (stochasticPeriod + 1) * 30
-      : interval == "2mo" ? (stochasticPeriod + 1) * 60
-      : interval == "3mo" ? (stochasticPeriod + 1) * 90
-      : interval == "6mo" ? (stochasticPeriod + 1) * 180
-      : interval == "9mo" ? (stochasticPeriod + 1) * 270
-      : (stochasticPeriod + 1) * 365;
-    const larger_period = Math.max(smaValue ?? 0, stochasticPeriod, days);
+      : interval == "1mo" ? barsNeeded * 30
+      : interval == "2mo" ? barsNeeded * 60
+      : interval == "3mo" ? barsNeeded * 90
+      : interval == "6mo" ? barsNeeded * 180
+      : interval == "9mo" ? barsNeeded * 270
+      : barsNeeded * 365;
+    const larger_period = Math.max(includeSma ? smaValue ?? 0 : 0, stochasticPeriod ?? 14, days);
     const period1Date = new Date();
     period1Date.setDate(period1Date.getDate() - larger_period);
 
@@ -100,7 +104,7 @@ const FindStocks = () => {
           const closes = data.map((d) => d.close);
           const highs = data.map((d) => d.high);
           const lows = data.map((d) => d.low);
-          const stochasticValues = calculateStochastic(closes, highs, lows, stochasticPeriod);
+          const { k: stochasticK, d: stochasticD } = calculateStochasticKD(closes, highs, lows, stochasticPeriod ?? 14);
 
           if (includeSma && !smaValue) {
             toast({
@@ -137,8 +141,8 @@ const FindStocks = () => {
           const rsiDisplay = calculateRsi(closes, rsiPeriod ?? 14);
           const macdValues = includeMacd ? calculateMACD(closes, macDFastValue!, macDSlowValue!, macDPeriod!) : null;
 
-          for (let i = closes.length; i > Math.max(smaValue ?? 0, stochasticPeriod); i--) {
-            if (stochasticValues[i] !== null && stochasticValues[i - 1]) {
+          for (let i = closes.length - 1; i > Math.max(includeSma ? smaValue ?? 0 : 0, stochasticPeriod ?? 14); i--) {
+            if (stochasticK[i] !== null && stochasticD[i] !== null && stochasticK[i - 1] !== null && stochasticD[i - 1] !== null) {
               const smaCondition = includeSma ? smaValues![i] !== null && (smaDirection === "above" ? closes[i] > smaValues![i]! : closes[i] < smaValues![i]!) : true;
 
               const rsiIdx = i - (rsiPeriod ?? 14);
@@ -149,13 +153,16 @@ const FindStocks = () => {
                   (macdDirection === "above" ? macdValues!.macdLine[i]! > macdValues!.signalLine[i]! : macdValues!.macdLine[i]! < macdValues!.signalLine[i]!)
                 : true;
 
-              // main signal
+              // %K crosses %D within the selected range
+              const inRange = activeLevelMax !== null
+                ? stochasticK[i]! >= (activeLevel ?? 0) && stochasticK[i]! <= activeLevelMax
+                : stochasticDirection === "above"
+                  ? stochasticK[i]! >= (activeLevel ?? 0)
+                  : stochasticK[i]! <= (activeLevel ?? 100);
               const stochasticCondition = includeRsi ? true :
                 stochasticDirection === "above"
-                  ? stochasticValues[i]! > activeLevel && stochasticValues[i - 1]! < activeLevel &&
-                    (activeLevelMax === null || stochasticValues[i]! <= activeLevelMax)
-                  : stochasticValues[i]! < activeLevel && stochasticValues[i - 1]! > activeLevel &&
-                    (activeLevelMax === null || stochasticValues[i]! >= activeLevelMax);
+                  ? stochasticK[i]! > stochasticD[i]! && stochasticK[i - 1]! <= stochasticD[i - 1]! && inRange
+                  : stochasticK[i]! < stochasticD[i]! && stochasticK[i - 1]! >= stochasticD[i - 1]! && inRange;
 
               if (smaCondition && stochasticCondition && rsiCondition && macdCondition) {
                 if (includeSma) console.log(closes[i], smaValues![i]);
@@ -167,7 +174,7 @@ const FindStocks = () => {
                   buyPrice: closes[i],
                   curPrice: livePrice,
                   rsiValue: rsiDisplay[i - (rsiPeriod ?? 14)] ?? null,
-                  stochasticValue: stochasticValues[i] ?? null,
+                  stochasticValue: stochasticK[i] ?? null,
                 });
                 break;
               }
@@ -180,9 +187,237 @@ const FindStocks = () => {
       setProgress((prevProgress) => prevProgress + 1);
     }
 
-    results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    results.sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (includeRsi) {
+        if (dateDiff !== 0) return dateDiff;
+        return (b.rsiValue ?? 0) - (a.rsiValue ?? 0);
+      }
+      return dateDiff;
+    });
     setIsDataReady(true);
     setMatchingStock(results);
+    setLoading(false);
+  };
+
+  const handleFetchAll = async () => {
+    setIsAllActive(true);
+    setMatchingStock([]);
+    setLoading(true);
+    setProgress(0);
+
+    const allRanges = Array.from({ length: 20 }, (_, i) => ({
+      min: i * 5 + 1,
+      max: (i + 1) * 5,
+    }));
+
+    const activePeriod = stochasticPeriod ?? 14;
+    const days =
+      interval === "1d" || interval === "5d" ? 365
+      : interval === "1mo" ? (activePeriod + 1) * 30
+      : interval === "2mo" ? (activePeriod + 1) * 60
+      : interval === "3mo" ? (activePeriod + 1) * 90
+      : interval === "6mo" ? (activePeriod + 1) * 180
+      : interval === "9mo" ? (activePeriod + 1) * 270
+      : (activePeriod + 1) * 365;
+
+    const larger_period = Math.max(smaValue ?? 0, activePeriod, days);
+    const period1Date = new Date();
+    period1Date.setDate(period1Date.getDate() - larger_period);
+
+    const allResults: any[] = [];
+
+    for (const ticker of selectedRows.length > 0 ? selectedRows : snp_array) {
+      const symbol = ticker.Symbol;
+      const security = ticker.Security;
+      const industry = ticker["GICS Sector"];
+
+      try {
+        const data = await fetchChartData(symbol, period1Date.toISOString().split("T")[0], formattedToday, interval);
+        if (data && data.length) {
+          const livePrice = data[data.length - 1].close;
+          // Always include today's data for the ALL scan
+          const closes = data.map((d) => d.close);
+          const highs = data.map((d) => d.high);
+          const lows = data.map((d) => d.low);
+          const { k: stochasticK, d: stochasticD } = calculateStochasticKD(closes, highs, lows, activePeriod);
+          const smaValues = includeSma ? calculateSma(closes, smaValue!) : null;
+          const rsiValues = includeRsi ? calculateRsi(closes, rsiPeriod ?? 14) : null;
+          const rsiDisplay = calculateRsi(closes, rsiPeriod ?? 14);
+          const macdValues = includeMacd ? calculateMACD(closes, macDFastValue!, macDSlowValue!, macDPeriod!) : null;
+
+          // Find today's bar — the most recent index with two consecutive valid K and D values
+          let todayIdx = -1;
+          for (let i = stochasticK.length - 1; i >= 1; i--) {
+            if (stochasticK[i] !== null && stochasticD[i] !== null && stochasticK[i - 1] !== null && stochasticD[i - 1] !== null) {
+              todayIdx = i;
+              break;
+            }
+          }
+
+          if (todayIdx === -1) {
+            setProgress((prevProgress) => prevProgress + 1);
+            continue;
+          }
+
+          const i = todayIdx;
+
+          // Only check today's bar against every range — no historical scan
+          for (const { min, max } of allRanges) {
+            const smaCondition = includeSma
+              ? smaValues![i] !== null && (smaDirection === "above" ? closes[i] > smaValues![i]! : closes[i] < smaValues![i]!)
+              : true;
+            const rsiIdx = i - (rsiPeriod ?? 14);
+            const rsiCondition = includeRsi
+              ? rsiIdx >= 0 && rsiValues![rsiIdx] != null && (rsiDirection === "above" ? rsiValues![rsiIdx]! > rsiValue! : rsiValues![rsiIdx]! < rsiValue!)
+              : true;
+            const macdCondition = includeMacd
+              ? macdValues!.macdLine[i] !== null &&
+                macdValues!.signalLine[i] !== null &&
+                (macdDirection === "above" ? macdValues!.macdLine[i]! > macdValues!.signalLine[i]! : macdValues!.macdLine[i]! < macdValues!.signalLine[i]!)
+              : true;
+            // ALL UP: %K crosses above %D within the range
+            const stochasticCondition = includeRsi
+              ? true
+              : stochasticK[i]! > stochasticD[i]! && stochasticK[i - 1]! <= stochasticD[i - 1]! &&
+                stochasticK[i]! >= min && stochasticK[i]! <= max;
+
+            if (smaCondition && stochasticCondition && rsiCondition && macdCondition) {
+              allResults.push({
+                symbol,
+                security,
+                industry,
+                date: data[i].date,
+                buyPrice: closes[i],
+                curPrice: livePrice,
+                rsiValue: rsiDisplay[i - (rsiPeriod ?? 14)] ?? null,
+                stochasticValue: stochasticK[i] ?? null,
+              });
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching data for symbol:", symbol, error);
+      }
+      setProgress((prevProgress) => prevProgress + 1);
+    }
+
+    // Sort by stochastic value ascending (lowest first)
+    allResults.sort((a, b) => (a.stochasticValue ?? 100) - (b.stochasticValue ?? 100));
+    setIsDataReady(true);
+    setMatchingStock(allResults);
+    setLoading(false);
+  };
+
+  const handleFetchAllDown = async () => {
+    setIsAllDownActive(true);
+    setIsAllActive(false);
+    setMatchingStock([]);
+    setLoading(true);
+    setProgress(0);
+
+    const allRanges = Array.from({ length: 20 }, (_, i) => ({
+      min: i * 5 + 1,
+      max: (i + 1) * 5,
+    }));
+
+    const activePeriod = stochasticPeriod ?? 14;
+    const days =
+      interval === "1d" || interval === "5d" ? 365
+      : interval === "1mo" ? (activePeriod + 1) * 30
+      : interval === "2mo" ? (activePeriod + 1) * 60
+      : interval === "3mo" ? (activePeriod + 1) * 90
+      : interval === "6mo" ? (activePeriod + 1) * 180
+      : interval === "9mo" ? (activePeriod + 1) * 270
+      : (activePeriod + 1) * 365;
+
+    const larger_period = Math.max(smaValue ?? 0, activePeriod, days);
+    const period1Date = new Date();
+    period1Date.setDate(period1Date.getDate() - larger_period);
+
+    const allResults: any[] = [];
+
+    for (const ticker of selectedRows.length > 0 ? selectedRows : snp_array) {
+      const symbol = ticker.Symbol;
+      const security = ticker.Security;
+      const industry = ticker["GICS Sector"];
+
+      try {
+        const data = await fetchChartData(symbol, period1Date.toISOString().split("T")[0], formattedToday, interval);
+        if (data && data.length) {
+          const livePrice = data[data.length - 1].close;
+          // Always include today's data for the ALL DOWN scan
+          const closes = data.map((d) => d.close);
+          const highs = data.map((d) => d.high);
+          const lows = data.map((d) => d.low);
+          const { k: stochasticK, d: stochasticD } = calculateStochasticKD(closes, highs, lows, activePeriod);
+          const smaValues = includeSma ? calculateSma(closes, smaValue!) : null;
+          const rsiValues = includeRsi ? calculateRsi(closes, rsiPeriod ?? 14) : null;
+          const rsiDisplay = calculateRsi(closes, rsiPeriod ?? 14);
+          const macdValues = includeMacd ? calculateMACD(closes, macDFastValue!, macDSlowValue!, macDPeriod!) : null;
+
+          // Find today's bar — the most recent index with two consecutive valid K and D values
+          let todayIdx = -1;
+          for (let i = stochasticK.length - 1; i >= 1; i--) {
+            if (stochasticK[i] !== null && stochasticD[i] !== null && stochasticK[i - 1] !== null && stochasticD[i - 1] !== null) {
+              todayIdx = i;
+              break;
+            }
+          }
+
+          if (todayIdx === -1) {
+            setProgress((prevProgress) => prevProgress + 1);
+            continue;
+          }
+
+          const i = todayIdx;
+
+          // ALL DOWN always uses crosses-below regardless of the direction dropdown
+          for (const { min, max } of allRanges) {
+            const smaCondition = includeSma
+              ? smaValues![i] !== null && (smaDirection === "above" ? closes[i] > smaValues![i]! : closes[i] < smaValues![i]!)
+              : true;
+            const rsiIdx = i - (rsiPeriod ?? 14);
+            const rsiCondition = includeRsi
+              ? rsiIdx >= 0 && rsiValues![rsiIdx] != null && (rsiDirection === "above" ? rsiValues![rsiIdx]! > rsiValue! : rsiValues![rsiIdx]! < rsiValue!)
+              : true;
+            const macdCondition = includeMacd
+              ? macdValues!.macdLine[i] !== null &&
+                macdValues!.signalLine[i] !== null &&
+                (macdDirection === "above" ? macdValues!.macdLine[i]! > macdValues!.signalLine[i]! : macdValues!.macdLine[i]! < macdValues!.signalLine[i]!)
+              : true;
+            // ALL DOWN: %K crosses below %D within the range
+            const stochasticCondition = includeRsi
+              ? true
+              : stochasticK[i]! < stochasticD[i]! && stochasticK[i - 1]! >= stochasticD[i - 1]! &&
+                stochasticK[i]! >= min && stochasticK[i]! <= max;
+
+            if (smaCondition && stochasticCondition && rsiCondition && macdCondition) {
+              allResults.push({
+                symbol,
+                security,
+                industry,
+                date: data[i].date,
+                buyPrice: closes[i],
+                curPrice: livePrice,
+                rsiValue: rsiDisplay[i - (rsiPeriod ?? 14)] ?? null,
+                stochasticValue: stochasticK[i] ?? null,
+              });
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching data for symbol:", symbol, error);
+      }
+      setProgress((prevProgress) => prevProgress + 1);
+    }
+
+    // Sort by stochastic value descending (highest first — most overbought at top)
+    allResults.sort((a, b) => (b.stochasticValue ?? 0) - (a.stochasticValue ?? 0));
+    setIsDataReady(true);
+    setMatchingStock(allResults);
     setLoading(false);
   };
 
@@ -220,10 +455,28 @@ const FindStocks = () => {
             </SelectContent>
           </Select>
           <div className="flex flex-wrap gap-1">
+            <Button
+              disabled={loading}
+              variant={isAllActive ? "default" : "outline"}
+              size="sm"
+              className={isAllActive ? "" : "border-blue-500 text-blue-600 hover:bg-blue-50"}
+              onClick={() => { setIsAllDownActive(false); handleFetchAll(); }}
+            >
+              ALL UP
+            </Button>
+            <Button
+              disabled={loading}
+              variant={isAllDownActive ? "default" : "outline"}
+              size="sm"
+              className={isAllDownActive ? "" : "border-red-500 text-red-600 hover:bg-red-50"}
+              onClick={() => { setIsAllActive(false); handleFetchAllDown(); }}
+            >
+              ALL DOWN
+            </Button>
             {Array.from({ length: 20 }, (_, i) => {
               const min = i * 5 + 1;
               const max = (i + 1) * 5;
-              const isActive = stochasticLevel === min && stochasticLevelMax === max;
+              const isActive = !isAllActive && !isAllDownActive && stochasticLevel === min && stochasticLevelMax === max;
               return (
                 <Button
                   key={min}
@@ -231,6 +484,8 @@ const FindStocks = () => {
                   variant={isActive ? "default" : "outline"}
                   size="sm"
                   onClick={() => {
+                    setIsAllActive(false);
+                    setIsAllDownActive(false);
                     setStochasticLevel(min);
                     setStochasticLevelMax(max);
                     if (!includeRsi) handleFetch(min, max);
@@ -458,18 +713,24 @@ const FindStocks = () => {
           <Checkbox checked={includeLiveData} className="mr-2 -translate-y-[1px]" />
           <span className="h-10 py-2 text-sm font-semibold">Include Current Day&apos;s Data (only use during trading days)</span>
         </div>
-        <div className="ml-auto">
-          <Button onClick={() => downloadCSV(matchingStock)} disabled={!isDataReady} className="btn btn-primary mr-6">
+        <div className="ml-auto flex items-center gap-3">
+          <Button
+            onClick={() => setShowTodayHighlight(!showTodayHighlight)}
+            variant={showTodayHighlight ? "default" : "outline"}
+            className={showTodayHighlight ? "bg-yellow-400 text-black hover:bg-yellow-500 border-yellow-400" : "border-yellow-400 text-yellow-600 hover:bg-yellow-50"}
+          >
+            TODAY
+          </Button>
+          <Button onClick={() => downloadCSV(matchingStock)} disabled={!isDataReady} className="btn btn-primary">
             Download to Excel
           </Button>
-
-          <Button onClick={handleFetch} disabled={loading} className="btn btn-primary">
+          <Button onClick={() => handleFetch()} disabled={loading} className="btn btn-primary">
             Fetch
           </Button>
         </div>
       </div>
       <div className="w-full">
-        <DataTable isLoading={loading} columns={columns} data={matchingStock} />
+        <DataTable isLoading={loading} columns={columns} data={matchingStock} showTodayHighlight={showTodayHighlight} />
       </div>
     </div>
   );
