@@ -18,6 +18,10 @@ export const EXPLORE = [
     title: "Nasdaq 100",
     href: "nasdaq-100",
   },
+  {
+    title: "Russell 1000",
+    href: "russell-1000",
+  },
 ];
 
 export const WORK_IN_PROGRESS = [
