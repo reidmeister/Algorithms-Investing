@@ -150,7 +150,11 @@ const FindStocks = () => {
               const macdCondition = includeMacd
                 ? macdValues!.macdLine[i] !== null &&
                   macdValues!.signalLine[i] !== null &&
-                  (macdDirection === "above" ? macdValues!.macdLine[i]! > macdValues!.signalLine[i]! : macdValues!.macdLine[i]! < macdValues!.signalLine[i]!)
+                  macdValues!.macdLine[i - 1] !== null &&
+                  macdValues!.signalLine[i - 1] !== null &&
+                  (macdDirection === "above"
+                    ? macdValues!.macdLine[i]! > macdValues!.signalLine[i]! && macdValues!.macdLine[i - 1]! <= macdValues!.signalLine[i - 1]!
+                    : macdValues!.macdLine[i]! < macdValues!.signalLine[i]! && macdValues!.macdLine[i - 1]! >= macdValues!.signalLine[i - 1]!)
                 : true;
 
               // %K crosses %D within the selected range
@@ -274,7 +278,10 @@ const FindStocks = () => {
             const macdCondition = includeMacd
               ? macdValues!.macdLine[i] !== null &&
                 macdValues!.signalLine[i] !== null &&
-                (macdDirection === "above" ? macdValues!.macdLine[i]! > macdValues!.signalLine[i]! : macdValues!.macdLine[i]! < macdValues!.signalLine[i]!)
+                macdValues!.macdLine[i - 1] !== null &&
+                macdValues!.signalLine[i - 1] !== null &&
+                macdValues!.macdLine[i]! > macdValues!.signalLine[i]! &&
+                macdValues!.macdLine[i - 1]! <= macdValues!.signalLine[i - 1]!
               : true;
             // ALL UP: %K crosses above %D within the range
             const stochasticCondition = includeRsi
@@ -385,7 +392,10 @@ const FindStocks = () => {
             const macdCondition = includeMacd
               ? macdValues!.macdLine[i] !== null &&
                 macdValues!.signalLine[i] !== null &&
-                (macdDirection === "above" ? macdValues!.macdLine[i]! > macdValues!.signalLine[i]! : macdValues!.macdLine[i]! < macdValues!.signalLine[i]!)
+                macdValues!.macdLine[i - 1] !== null &&
+                macdValues!.signalLine[i - 1] !== null &&
+                macdValues!.macdLine[i]! < macdValues!.signalLine[i]! &&
+                macdValues!.macdLine[i - 1]! >= macdValues!.signalLine[i - 1]!
               : true;
             // ALL DOWN: %K crosses below %D within the range
             const stochasticCondition = includeRsi
@@ -578,7 +588,7 @@ const FindStocks = () => {
           </Select>
         </div>
       </div>
-      <div className="w-full mb-4 gap-6 hidden">
+      <div className="w-full mb-4 gap-6 flex flex-wrap">
         <div className="flex items-center gap-2">
           <div
             className="flex items-center cursor-pointer"
